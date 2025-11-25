@@ -4,6 +4,7 @@ import corsMiddleware from "./middleware/cors.js";
 import { connectDB } from "./config/db.js";
 import songRoutes from "./routes/songRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import serverless from "serverless-http";
 
 dotenv.config();
 
@@ -11,10 +12,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Global database pool
-let pool;
+// let pool;
 
 // Middleware
-app.use(corsMid// dleware);
+app.use(corsMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -22,22 +23,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/songs', songRoutes);
 app.use('/api/users', userRoutes);
 
-// Health check
+// Health check (simplified for live mode)
 app.get('/health', async (req, res) => {
     try {
-        if (!pool) {
-            return res.status(503).json({ status: 'Database not connected' });
-        }
-        const result = await pool.request().query('SELECT 1 as test');
         res.json({ 
-            status: 'Server is running', 
-            database: 'Connected',
-            timestamp: new Date().toISOString(),
-            test: result.recordset[0]
+            status: 'Server is running (live mode)', 
+            database: 'Not connected - live mode only',
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
         res.status(500).json({ 
-            status: 'Database connection failed', 
+            status: 'Server error', 
             error: error.message 
         });
     }
@@ -52,27 +48,35 @@ app.get('/', (req, res) => {
     });
 });
 
+// Check if running in Lambda environment
+const isLambda = !!process.env.LAMBDA_TASK_ROOT;
 
+// Lambda/Serverless configuration (for potential deployment)
+const server = serverless(app);
+export const handler = async (event, context) => {
+    const response = await server(event, context);
+    return response;
+};
 
-// Start server
-async function startServer() {
-    try {
-        console.log('🔄 Connecting to database...');
-        // pool = await connectDB();
-        console.log('✅ Database connected successfully');
-        
-  //    app.listen(PORT, () => {
-   //       conso// log(`🚀 Server running on http://localhost:${PORT}`); //          console.log(`📊 Health checkt// tp://localhost:${PORT}/health`);
-            console.log(`🎵 Songs ://  http://localhost:${PORT}/api/son)// ;
-        });
-    } catch (error) {
-        console.error('❌ Failed to r// t server:', error.message);
-        process.exit(1);
+if (!isLambda) {
+    // Local development server
+    async function startServer() {
+        try {
+            console.log('🔄 Starting local development server...');
+            console.log('📝 Running in live mode (no database)');
+            
+            app.listen(PORT, () => {
+                console.log(`🚀 Server running on http://localhost:${PORT}`);
+                console.log(`📊 Health check: http://localhost:${PORT}/health`);
+                console.log(`🎵 Songs API: http://localhost:${PORT}/api/songs`);
+                console.log(`👥 Users API: http://localhost:${PORT}/api/users`);
+                console.log('💡 Live mode - no database storage');
+            });
+        } catch (error) {
+            console.error('❌ Failed to start server:', error.message);
+            process.exit(1);
+        }
     }
+
+    startServer();
 }
-
-
-// Exporo// ol for use in routes
-export { pool };
-
-startServer();// // // // // // // 
